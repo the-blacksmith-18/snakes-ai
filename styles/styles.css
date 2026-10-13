@@ -35,3 +35,10 @@
   place-items: center; /* This centers the child in both directions */
   min-height: 100vh;    /* Ensures the container fills the view */
 }
+.speed-label {
+    display: inline-block;
+    min-width: 70px;
+    text-align: center;
+    font-family: sans-serif;
+    font-size: 16px;
+}
