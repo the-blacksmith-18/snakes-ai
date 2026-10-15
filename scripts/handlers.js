@@ -1,19 +1,4 @@
-function init() {
-    console.log("loaded");
-    
-    canvasHelper.Init(gameCanvas, { _tileWidth: tileWidth, _scale: scale });
-    canvasHelper.DrawGrids(tileWidth);
-
-    let _snake = snake({
-        grid: canvasHelper.GetGridDimensions(), 
-        startCoordinates: null, 
-        snakeSpeed
-    });
-
-    _snake.Events.RegisterOnError((reason)=> {
-        canvasHelper.OnError(_snake.Position, "GAME OVER: " + reason);
-    });
-
+const InitActionHandlers = (snakeCtx) => {
     const btnStart = document.getElementById("startButton");
     const btnPause = document.getElementById("pauseButton");
     const btnHealth = document.getElementById("sizeButton");
@@ -24,42 +9,90 @@ function init() {
     const showSpeed = (speed) => {
         speedLabel.textContent = `Speed ${speed}`;
     }
-    showSpeed(_snake.Speed());
+    showSpeed(snakeCtx.Speed());
 
     btnStart.addEventListener("click", (event) => {
-        _snake.Actions.Start(canvasHelper.RenderSnake); 
+        //Important: remeber to set on move callback to enable snake rendering on canvas
+        if (!snakeCtx.IsRenderingEnabled())
+            alert("Snake movement rendering is not enabled.");
+        else 
+            snakeCtx.Actions.Start(); 
     });
 
     btnPause.addEventListener("click", (event) => {
-        _snake.Actions.PauseOrPlay();
+        snakeCtx.Actions.PauseOrPlay();
     });
     btnHealth.addEventListener("click", (event) => {
-        _snake.Actions.IncreaseHealth();
+        snakeCtx.Actions.IncreaseHealth();
     });
     btnSlower.addEventListener("click", (event) => {
-        showSpeed(_snake.Actions.ChangeSpeed(-1));
+        showSpeed(snakeCtx.Actions.ChangeSpeed(-1));
     });
     btnFaster.addEventListener("click", (event) => {
-        showSpeed(_snake.Actions.ChangeSpeed(1));
+        showSpeed(snakeCtx.Actions.ChangeSpeed(1));
     });
 
     document.addEventListener("keydown", (e) => {
         if (e.key == "ArrowUp") {
-            _snake.Actions.ChangeDirection(DIRECTIONS.TOP);
+            snakeCtx.Actions.ChangeDirection(DIRECTIONS.TOP);
         }
         else if (e.key == "ArrowDown") {
-            _snake.Actions.ChangeDirection(DIRECTIONS.BOTTOM);
+            snakeCtx.Actions.ChangeDirection(DIRECTIONS.BOTTOM);
         }
         else if (e.key == "ArrowLeft") {
-            _snake.Actions.ChangeDirection(DIRECTIONS.LEFT);
+            snakeCtx.Actions.ChangeDirection(DIRECTIONS.LEFT);
         }
         else if (e.key == "ArrowRight") {
-            _snake.Actions.ChangeDirection(DIRECTIONS.RIGHT);
+            snakeCtx.Actions.ChangeDirection(DIRECTIONS.RIGHT);
         }
-    })
+    });
+}
 
+function Init() {
+
+    canvasHelper.Init(gameCanvas, { _tileWidth: tileWidth, _scale: scale });
+    canvasHelper.DrawGrids(tileWidth);
+
+    const gridDim = canvasHelper.GetGridDimensions();
+    const gridCtx = gridHelper(gridDim["rows"], gridDim["cols"]);
+    const hurdles = gridCtx.GenerateHurdles(new Set());
+
+    let _snake = snake({
+        grid: gridDim, 
+        startCoordinates: null, 
+        snakeSpeed,
+        hurdles
+    });
+
+    let foodPosition = null;
+
+    const foodMechanism = (snakePosition) => {
+        const snakePositionSet = new Set(snakePosition.map(x => gridCtx.Encoder.CoordinatesToKey(x)));
+        if (foodPosition == null)
+            foodPosition = gridCtx.GenerateFood(snakePositionSet);
+
+        const snakeAteFood = gridCtx.Encoder.CoordinatesToKey(snakePosition[snakePosition.length - 1]) == gridCtx.Encoder.CoordinatesToKey(foodPosition);
+        if (snakeAteFood) {
+            _snake.Actions.IncreaseHealth();
+            foodPosition = gridCtx.GenerateFood(snakePositionSet);
+        }
+        canvasHelper.RenderBlinkingItem(foodPosition, "yellow");
+    }
+
+    _snake.Events.RegisterOnMove((snakePosition, lastLeftPosition) => {
+        foodMechanism(snakePosition);
+        canvasHelper.RenderSnake(snakePosition, lastLeftPosition);
+    });
+    
+    
+    canvasHelper.RenderObjects(Array.from(hurdles).map(x => gridCtx.Encoder.CoordinatesFromKey(x)));
+
+    _snake.Events.RegisterOnError((reason)=> {
+        canvasHelper.OnError(_snake.Position(), reason);
+    });
+
+    InitActionHandlers(_snake);
 }
 
 
-
-document.addEventListener("DOMContentLoaded", init);
+document.addEventListener("DOMContentLoaded", Init);

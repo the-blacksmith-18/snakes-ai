@@ -1,12 +1,18 @@
+/**
+ * 
+ * @param {{grid:{rows: number, cols: number}, startCoordinates: {row: number, col: number},snakeSpeed:number, hurdles: Set<string>}} config 
+ * @returns 
+ */
 const snake = (config) => ((config) => {
-    let { grid, startCoordinates, snakeSpeed } = config
+    let { grid, startCoordinates, snakeSpeed, hurdles } = config
     let isDead = false;
     let health = 1; //minimum start length of snake before eating any food
     let currentPosition = [];
     let currentDirection = DIRECTIONS.RIGHT;// default right
     let currentState = STATES.STOPPED;
     let events = {
-        onError: null
+        onError: null,
+        onMove: null
     }
 
     const die = (reason) => {
@@ -17,22 +23,19 @@ const snake = (config) => ((config) => {
     }
 
     /**
-     * 
-     * @param {function(snakePosition, lastLeftPosition)} callBack callback to run every time 
      * @param {{row: number, col: number}} startCoordinates 
      */
-    const start = (callBack, startCoordinates) => {
+    const start = (startCoordinates) => {
         currentPosition.length = 0;
         let initialCoordinates = startCoordinates && Object.keys(startCoordinates).length > 0 ? startCoordinates : { row: 0, col: 0 } 
         currentPosition.push(initialCoordinates);
         currentState = STATES.RUNNING;
-        onTick = callBack; // remembered so the interval can be restarted when the speed changes
-        Move(onTick);
+        Move();
     }
 
     let interval = null;
     let onTick = null;
-    const Move = (callback) => {
+    const Move = () => {
         if (!Number.isNaN(interval))
             clearInterval(interval);
 
@@ -46,6 +49,11 @@ const snake = (config) => ((config) => {
                     return;
                 }
 
+                if (!isValidMove(lastPositionOfHead)) {
+                    die("Snake hits wall");
+                    clearInterval(interval);
+                    return;
+                }
 
                 switch (currentDirection) {
                     case DIRECTIONS.TOP:
@@ -90,9 +98,17 @@ const snake = (config) => ((config) => {
                 let lastLeftPosition = null;
                 if(currentPosition.length > health)
                     lastLeftPosition = currentPosition.shift();
-                callback && callback(currentPosition, lastLeftPosition);
+
+                events.onMove && events.onMove(currentPosition, lastLeftPosition);
+                if(!events.onMove){
+                    console.warn("Snake rendering is not registerd. Please use snake.Events.onMove= to set on move event")
+                }
             }
         }, 1000 / snakeSpeed);
+    }
+
+    const isValidMove = (snakeHead) => {
+        return !hurdles.has(`${snakeHead["row"]},${snakeHead["col"]}`);
     }
 
     const ChangeDirection = (direction) => {
@@ -126,10 +142,18 @@ const snake = (config) => ((config) => {
         IsDead: ()=> isDead,
         Health: ()=> health,
         Speed: () => snakeSpeed,
-        Position: currentPosition,
+        Position: () => currentPosition,
+        IsRenderingEnabled: () =>  events.onMove != null,
         Events: {
             RegisterOnError: (callback)=> {
                 events.onError = callback;
+            },
+            /**
+             * 
+             * @param {function(Array<{row: number, col: number}>, {row: number, col: number})} callback 
+             */
+            RegisterOnMove: (callback) => {
+                events.onMove = callback
             }
         },
         Actions: {
